@@ -6,8 +6,7 @@ import {
 } from "../types/auth";
 
 class AuthService {
-  private baseURL = "http://localhost:3000/api/v1";
-
+  private baseURL = process.env.REACT_APP_API_BASE_URL || "";
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     const response = await fetch(`${this.baseURL}/auth/login`, {
       method: "POST",

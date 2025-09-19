@@ -1,12 +1,13 @@
 import axios, { AxiosInstance } from "axios";
+import { OrderType } from "../types/order";
 
-class ApiService<T> {
-  private api: AxiosInstance;
-  private resource: string;
+export class ApiService<T> {
+  public api: AxiosInstance;
+  protected resource: string;
 
   constructor(
     resource: string,
-    baseURL: string = "http://localhost:3000/api/v1"
+    baseURL: string = process.env.REACT_APP_API_BASE_URL || ""
   ) {
     this.resource = resource;
     this.api = axios.create({ baseURL });
@@ -29,6 +30,10 @@ class ApiService<T> {
     return this.api.get(`/${this.resource}/${id}`);
   }
 
+  getAll(query: string) {
+    return this.api.get(`/${this.resource}/all?${query}`);
+  }
+
   create(data: T) {
     return this.api.post(`/${this.resource}`, data);
   }
@@ -37,8 +42,12 @@ class ApiService<T> {
     return this.api.put(`/${this.resource}/${id}`, data);
   }
 
+  updateStatus(id: string, data: Partial<T>) {
+    return this.api.put(`/${this.resource}/${id}/status`, data);
+  }
+
   remove(id: string) {
-    return this.api.delete(`/${this.resource}/${id}`);
+    return this.api.delete(`/${this.resource}`);
   }
 
   fetchCategories() {
@@ -51,3 +60,5 @@ class ApiService<T> {
 }
 
 export const productService = new ApiService("products");
+export const userService = new ApiService("users");
+export const orderService = new ApiService<OrderType>("orders");

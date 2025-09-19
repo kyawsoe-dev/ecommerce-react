@@ -1,6 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, LoginCredentials, RegisterData } from '../types/auth';
-import { authService } from '../services/authService';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { User, LoginCredentials, RegisterData } from "../types/auth";
+import { authService } from "../services/authService";
 
 interface AuthContextType {
   user: User | null;
@@ -17,7 +23,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
@@ -27,14 +33,28 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    const savedUser = localStorage.getItem("user");
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+
+  const [isLoading, setIsLoading] = useState(!user);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      authService.getCurrentUser(token)
-        .then(setUser)
+    const token = localStorage.getItem("token");
+    if (token && !user) {
+      setIsLoading(true);
+      authService
+        .getCurrentUser(token)
+        .then((fetchedUser) => {
+          const normalizedUser = {
+            ...fetchedUser,
+            roles: fetchedUser.roles.map((r: any) => r.role.name),
+          };
+          setUser(normalizedUser);
+          localStorage.setItem("user", JSON.stringify(normalizedUser));
+        })
+        .catch(() => logout())
         .finally(() => setIsLoading(false));
     } else {
       setIsLoading(false);
@@ -45,33 +65,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const response = await authService.login(credentials);
     const { token, user } = response.data;
 
-    localStorage.setItem('token', token);
-
-    const normalizedUser = {
-      ...user,
-      roles: user.roles.map((r: any) => r.role.name)
-    };
-
-    setUser(normalizedUser);
-  };
-
-
-  const register = async (data: RegisterData) => {
-    const response = await authService.register(data);
-    const { token, user } = response.data;
-
-    localStorage.setItem('token', token);
+    localStorage.setItem("token", token);
 
     const normalizedUser = {
       ...user,
       roles: user.roles.map((r: any) => r.role.name),
     };
 
+    localStorage.setItem("user", JSON.stringify(normalizedUser));
+    setUser(normalizedUser);
+  };
+
+  const register = async (data: RegisterData) => {
+    const response = await authService.register(data);
+    const { token, user } = response.data;
+
+    localStorage.setItem("token", token);
+
+    const normalizedUser = {
+      ...user,
+      roles: user.roles.map((r: any) => r.role.name),
+    };
+
+    localStorage.setItem("user", JSON.stringify(normalizedUser));
     setUser(normalizedUser);
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("cart");
     setUser(null);
   };
 
@@ -80,15 +103,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      isLoading,
-      login,
-      register,
-      logout,
-      isAuthenticated: !!user,
-      hasRole
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        login,
+        register,
+        logout,
+        isAuthenticated: !!user,
+        hasRole,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

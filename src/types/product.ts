@@ -1,3 +1,30 @@
+export interface ProductType {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  comparePrice?: number;
+  images: string[];
+  sku?: string;
+  stock?: number;
+  brand?: string;
+  status?: string;
+  categoryId?: string;
+  merchantId?: string;
+  averageRating?: number;
+  reviewCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  category?: {
+    id: string;
+    name: string;
+  };
+  merchant?: {
+    id: string;
+    businessName: string;
+  };
+}
+
 export type Product = {
   id: string;
   name: string;
@@ -49,6 +76,7 @@ export interface Merchant {
 
 export interface CartItem {
   id: string;
+  cartItemId?: string;
   product: Product;
   quantity: number;
   variant?: ProductVariant | null;

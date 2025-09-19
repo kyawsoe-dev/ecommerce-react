@@ -1,33 +1,88 @@
-import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ShoppingBag, User, Search, Menu, X } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { useCart } from '../../contexts/CartContext';
+import React, { useState, useEffect, useRef } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { ShoppingBag, User, Search, Menu, X } from "lucide-react";
+import { useAuth } from "../../contexts/AuthContext";
+import { useCart } from "../../contexts/CartContext";
+import { productService } from "../../services/apiService";
+import { ProductType } from "../../types/product";
 
 const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { user, logout, isAuthenticated } = useAuth();
-  const { totalItems } = useCart();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
+  const [searchResults, setSearchResults] = useState<ProductType[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout, isAuthenticated } = useAuth();
+  const { totalItems } = useCart();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const navigation = [
+    { name: "Home", href: "/" },
+    { name: "Products", href: "/products" },
+    { name: "About", href: "/about" },
+    { name: "Contact", href: "/contact" },
+  ];
+
+  const isActive = (path: string) => {
+    if (path === "/products") {
+      return location.pathname.startsWith("/products");
+    }
+    return location.pathname === path;
+  };
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (debouncedSearch.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const fetchProducts = async () => {
+      setIsSearching(true);
+      try {
+        const res = await productService.listWithQuery(
+          `search=${debouncedSearch}&limit=5`
+        );
+        setSearchResults(res.data?.data?.data || []);
+      } catch (err) {
+        console.error("Search failed", err);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    fetchProducts();
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setSearchResults([]);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate("/");
   };
 
-  const navigation = [
-    { name: 'Home', href: '/' },
-    { name: 'Products', href: '/products' },
-    { name: 'Categories', href: '/categories' },
-    { name: 'About', href: '/about' },
-    { name: 'Contact', href: '/contact' },
-  ];
-
-  const isActive = (path: string) => location.pathname === path;
-
   return (
-    <header className="bg-white shadow-sm border-b">
+    <header className="bg-white shadow-sm border-b relative z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
@@ -48,8 +103,8 @@ const Header: React.FC = () => {
                 to={item.href}
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                   isActive(item.href)
-                    ? 'text-blue-600 font-semibold'
-                    : 'text-gray-700 hover:text-blue-600'
+                    ? "text-blue-600 font-semibold"
+                    : "text-gray-700 hover:text-blue-600"
                 }`}
               >
                 {item.name}
@@ -58,15 +113,45 @@ const Header: React.FC = () => {
           </nav>
 
           {/* Search Bar */}
-          <div className="hidden md:flex items-center flex-1 max-w-lg mx-8">
+          <div
+            className="hidden md:flex items-center flex-1 max-w-lg relative"
+            ref={dropdownRef}
+          >
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <input
                 type="text"
                 placeholder="Search products..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+
+            {/* Dropdown results */}
+            {searchResults.length > 0 && (
+              <ul className="absolute top-full mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                {searchResults.map((product) => (
+                  <li
+                    key={product.id}
+                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                    onClick={() => {
+                      navigate(`/products/${product.id}`);
+                      setSearchResults([]);
+                      setSearchQuery("");
+                    }}
+                  >
+                    {product.name}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {isSearching && (
+              <div className="absolute top-full mt-1 right-3 text-gray-400 text-sm">
+                Searching...
+              </div>
+            )}
           </div>
 
           {/* User Actions */}
@@ -87,7 +172,9 @@ const Header: React.FC = () => {
               <div className="relative group">
                 <button className="flex items-center space-x-2 p-2 text-gray-700 hover:text-blue-600 transition-colors">
                   <User className="h-6 w-6" />
-                  <span className="hidden md:block text-sm">{user?.firstName}</span>
+                  <span className="hidden md:block text-sm">
+                    {user?.firstName}
+                  </span>
                 </button>
 
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 origin-top-right z-10">
@@ -103,7 +190,7 @@ const Header: React.FC = () => {
                   >
                     Orders
                   </Link>
-                  {user?.roles?.includes('ADMIN') && (
+                  {user?.roles?.includes("ADMIN") && (
                     <Link
                       to="/admin"
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -111,7 +198,7 @@ const Header: React.FC = () => {
                       Admin Panel
                     </Link>
                   )}
-                  {user?.roles?.includes('MERCHANT') && (
+                  {user?.roles?.includes("MERCHANT") && (
                     <Link
                       to="/merchant"
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -149,7 +236,11 @@ const Header: React.FC = () => {
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="md:hidden p-2 text-gray-700 hover:text-blue-600"
             >
-              {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              {isMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
             </button>
           </div>
         </div>
@@ -165,8 +256,8 @@ const Header: React.FC = () => {
                 to={item.href}
                 className={`block px-3 py-2 text-base font-medium rounded-md ${
                   isActive(item.href)
-                    ? 'text-blue-600 bg-gray-100'
-                    : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                    ? "text-blue-600 bg-gray-100"
+                    : "text-gray-700 hover:text-blue-600 hover:bg-gray-50"
                 }`}
                 onClick={() => setIsMenuOpen(false)}
               >
